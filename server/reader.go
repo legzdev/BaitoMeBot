@@ -25,13 +25,14 @@ type TelegramReader struct {
 	client        *telegram.Client
 	media         telegram.MessageMedia
 	location      telegram.InputFileLocation
+	dcID          int
 	currentOffset int64
 	maxOffset     int64
 	end           int64
 }
 
 func NewTelegramReader(client *telegram.Client, media telegram.MessageMedia, end int64) (*TelegramReader, error) {
-	location, _, _, _, err := telegram.GetFileLocation(media)
+	location, dcID, _, _, err := telegram.GetFileLocation(media)
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +41,7 @@ func NewTelegramReader(client *telegram.Client, media telegram.MessageMedia, end
 		client:    client,
 		media:     media,
 		location:  location,
+		dcID:      int(dcID),
 		end:       end,
 		maxOffset: end + 1,
 	}, nil
@@ -76,6 +78,16 @@ func (r *TelegramReader) Read(buffer []byte) (int, error) {
 		limit = paddingPrefix + bufferSize + paddingSuffix
 	}
 
+	sender := r.client.MTProto
+	var err error
+
+	if sender.GetDC() != r.dcID {
+		sender, err = r.client.CreateExportedSender(r.dcID, false)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	params := &telegram.UploadGetFileParams{
 		Location:     r.location,
 		Offset:       offset,
@@ -84,7 +96,7 @@ func (r *TelegramReader) Read(buffer []byte) (int, error) {
 		CdnSupported: false,
 	}
 
-	part, err := r.client.MakeRequest(params)
+	part, err := sender.MakeRequest(params)
 	if err != nil {
 		return 0, errs.Wrapf(err, "request error (off=%d lim=%d end=%d)", r.currentOffset, limit, r.end)
 	}
