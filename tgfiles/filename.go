@@ -28,7 +28,7 @@ func GetFileName(message *telegram.NewMessage, userID int64) string {
 			// do nothing
 		} else if state == db.StateTxtCaption {
 			captionLines := strings.Split(caption, "\n")
-			fileName = captionLines[0] + GetFileExtension(message.Media())
+			fileName = strings.TrimSpace(captionLines[0]) + GetFileExtension(message.Media())
 
 		} else if state == db.StateTxtCaptionFull {
 			caption = strings.ReplaceAll(caption, "\n", "")
