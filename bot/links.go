@@ -24,7 +24,7 @@ func GenerateLink(message *telegram.NewMessage) (string, error) {
 		return "", err
 	}
 
-	info := tgfiles.GetFileInfo(storedMessage)
+	info := tgfiles.GetFileInfo(storedMessage, message.SenderID())
 	fileID := fmt.Sprint(storedMessage.ID)
 	hash := tgfiles.GetShortHash(info)
 

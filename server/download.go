@@ -44,7 +44,7 @@ func (server *Server) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileInfo := tgfiles.GetFileInfo(message)
+	fileInfo := tgfiles.GetFileInfo(message, 0)
 
 	fileName := r.PathValue("file_name")
 	if fileName == "" {

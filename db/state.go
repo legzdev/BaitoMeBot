@@ -10,7 +10,9 @@
 
 package db
 
-import "sync"
+import (
+	"sync"
+)
 
 type State uint8
 
@@ -50,12 +52,7 @@ func GetState(userID int64) State {
 	statesMux.Lock()
 	defer statesMux.Unlock()
 
-	state, ok := states[userID]
-	if ok {
-		return state
-	}
-
-	return StateDefault
+	return states[userID]
 }
 
 func DelState(userID int64) {

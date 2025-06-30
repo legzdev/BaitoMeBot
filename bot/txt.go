@@ -96,7 +96,7 @@ func NameFromArgs(text string) string {
 		return ""
 	}
 
-	return strings.Join(textParts, " ")
+	return strings.Join(textParts[1:], " ")
 }
 
 func GetBufferName(currentName string, newName string) string {

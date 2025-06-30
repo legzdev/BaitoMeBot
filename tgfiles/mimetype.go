@@ -36,5 +36,5 @@ func GetFileExtension(media telegram.MessageMedia) string {
 		return fileName[lastDotIndex:]
 	}
 
-	return ""
+	return ".unknown"
 }

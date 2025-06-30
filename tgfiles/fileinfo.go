@@ -21,12 +21,12 @@ type FileInfo struct {
 	Size     int64
 }
 
-func GetFileInfo(message *telegram.NewMessage) FileInfo {
+func GetFileInfo(message *telegram.NewMessage, senderID int64) FileInfo {
 	media := message.Media()
 
 	return FileInfo{
 		ID:       message.ID,
-		Name:     GetFileName(message, message.SenderID()),
+		Name:     GetFileName(message, senderID),
 		MimeType: GetMimeType(media),
 		Size:     GetFileSize(media),
 	}
