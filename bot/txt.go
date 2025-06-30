@@ -46,11 +46,12 @@ func onTxt(message *telegram.NewMessage, state db.State) error {
 		text += fmt.Sprintf("📝 <b>Name:</b> <code>%s</code>\n", bufferName)
 		text += fmt.Sprintf("🔭 <b>Mode:</b> %s", state.String())
 
-		opts := telegram.SendOptions{
+		opts := &telegram.SendOptions{
 			ParseMode: telegram.HTML,
+			ReplyID:   message.ID,
 		}
 
-		_, err := message.Reply(text, opts)
+		_, err := Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
 		return err
 	}
 
@@ -61,22 +62,24 @@ func onTxt(message *telegram.NewMessage, state db.State) error {
 		text := "<b>Switched to normal mode.</b>\n"
 		text += "Cleaned empty buffer"
 
-		opts := telegram.SendOptions{
+		opts := &telegram.SendOptions{
 			ParseMode: telegram.HTML,
+			ReplyID:   message.ID,
 		}
 
-		_, err := message.Reply(text, opts)
+		_, err := Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
 		return err
 	}
 
 	newName := NameFromArgs(message.MessageText())
 	fileName := GetBufferName(buffer.Name, newName)
 
-	opts := telegram.MediaOptions{
+	opts := &telegram.MediaOptions{
 		FileName: fileName,
+		ReplyID:  message.ID,
 	}
 
-	_, err := message.ReplyMedia(buffer.Bytes(), opts)
+	_, err := Bot.SendMedia(message.Client, message.ChannelID(), buffer.Bytes(), opts)
 	if err != nil {
 		return err
 	}

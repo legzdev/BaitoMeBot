@@ -11,9 +11,14 @@
 package bot
 
 import (
+	"log"
+	"time"
+
 	"github.com/amarnathcjd/gogram/telegram"
 	"github.com/legzdev/BaitoMeBot/config"
 )
+
+var Bot = NewTGMutex()
 
 func New() (*telegram.Client, error) {
 	return NewWithToken(config.TelegramBotToken)
@@ -21,9 +26,10 @@ func New() (*telegram.Client, error) {
 
 func NewWithToken(token string) (*telegram.Client, error) {
 	clientConfig := telegram.ClientConfig{
-		AppHash:  config.TelegramAppHash,
-		AppID:    config.TelegramAppID,
-		LogLevel: telegram.LogWarn,
+		AppHash:      config.TelegramAppHash,
+		AppID:        config.TelegramAppID,
+		LogLevel:     telegram.LogWarn,
+		FloodHandler: FloodHandler,
 	}
 
 	client, err := telegram.NewClient(clientConfig)
@@ -42,4 +48,15 @@ func NewWithToken(token string) (*telegram.Client, error) {
 	}
 
 	return client, nil
+}
+
+// Not sure if this works as expected
+func FloodHandler(err error) bool {
+	floodWait := telegram.GetFloodWait(err)
+
+	duration := time.Duration(floodWait) * time.Second
+	log.Printf("ratelimit reached (floodwait %v)", duration)
+
+	time.Sleep(duration)
+	return true
 }

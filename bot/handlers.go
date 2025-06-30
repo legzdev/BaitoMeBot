@@ -33,12 +33,13 @@ func OnMessage(message *telegram.NewMessage) error {
 	)
 
 	text := fmt.Sprintf("<code>%s</code>", link)
-	opts := telegram.SendOptions{
+	opts := &telegram.SendOptions{
 		ParseMode:   telegram.HTML,
 		ReplyMarkup: keyboard.Build(),
+		ReplyID:     message.ID,
 	}
 
-	_, err = message.Reply(text, opts)
+	_, err = Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
 	if err != nil {
 		return err
 	}

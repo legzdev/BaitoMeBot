@@ -19,7 +19,7 @@ import (
 )
 
 func GenerateLink(message *telegram.NewMessage) (string, error) {
-	storedMessage, err := message.ForwardTo(config.TelegramChatID)
+	storedMessage, err := Bot.ForwardTo(message.Client, config.TelegramChatID, message.ChannelID(), message.ID)
 	if err != nil {
 		return "", err
 	}

@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -39,6 +40,9 @@ var (
 	HashLength    int
 	ServerAddress string
 	ServerHost    *url.URL
+
+	TimeBetweenMessages time.Duration
+	TimeBetweenChecks   time.Duration
 )
 
 type ErrEnvNotFound struct {
@@ -91,6 +95,10 @@ func Load() (err error) {
 	}
 
 	HashLength = getEnvNumber("HASH_LENGTH", 6)
+
+	TimeBetweenMessages = getEnvDuration("TIME_BETWEEN_MESSAGES", 1*time.Second)
+	TimeBetweenChecks = getEnvDuration("TIME_BETWEEN_CHECKS", 1*time.Minute)
+
 	return nil
 }
 
@@ -143,4 +151,18 @@ func getEnvNumber[T Number](name string, value T) T {
 	}
 
 	return T(number)
+}
+
+func getEnvDuration(name string, value time.Duration) time.Duration {
+	env := os.Getenv(name)
+	if env == "" {
+		return value
+	}
+
+	duration, err := time.ParseDuration(env)
+	if err != nil {
+		log.Fatalf("env %s: invalid duration %v", name, env)
+	}
+
+	return duration
 }
