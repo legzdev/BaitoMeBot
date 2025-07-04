@@ -19,11 +19,11 @@ import (
 	"github.com/legzdev/BaitoMeBot/config"
 )
 
-func GetShortHash(info FileInfo) string {
+func GetShortHash(info *FileInfo) string {
 	return GetHash(info)[:config.HashLength]
 }
 
-func GetHash(info FileInfo) string {
+func GetHash(info *FileInfo) string {
 	hasher := md5.New()
 
 	io.WriteString(hasher, fmt.Sprint(info.ID))

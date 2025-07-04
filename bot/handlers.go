@@ -11,49 +11,83 @@
 package bot
 
 import (
-	"fmt"
+	"context"
+	"log"
 
-	"github.com/amarnathcjd/gogram/telegram"
+	"github.com/gotd/td/tg"
 	"github.com/legzdev/BaitoMeBot/db"
 )
 
-func OnMessage(message *telegram.NewMessage) error {
-	if !message.IsMedia() {
+// func HelpHandler(message *telegram.NewMessage) error {
+// 	text := "Hello, send me any file to get a direct streamble link to that file."
+// 	_, err := message.Reply(text)
+// 	return err
+// }
+//
+//
+
+func (bot *Bot) MessageHandler() tg.NewMessageHandler {
+	callback := func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
+		message, ok := update.Message.(*tg.Message)
+		if !ok || message.Out {
+			return nil
+		}
+
+		messagePeer, ok := message.PeerID.(*tg.PeerUser)
+		if !ok {
+			return nil
+		}
+
+		peer := &tg.InputPeerUser{
+			UserID:     messagePeer.UserID,
+			AccessHash: e.Users[messagePeer.UserID].AccessHash,
+		}
+
+		err := db.Peers.Put(peer)
+		if err != nil {
+			return err
+		}
+
+		_, isMedia := message.GetMedia()
+		if isMedia {
+			link, err := bot.GenerateLink(ctx, peer, message.ID)
+			if err != nil {
+				return err
+			}
+
+			log.Println(link)
+
+			req := &tg.MessagesSendMessageRequest{
+				Peer:    peer,
+				Message: link,
+			}
+
+			_, err = bot.SendMessage(ctx, req)
+			if err != nil {
+				return err
+			}
+
+		} else {
+		}
+
 		return nil
+
+		// _, ok = message.GetMedia()
+		// if ok {
+		// 	opts := &tg.MessagesForwardMessagesRequest{}
+		//
+		// 	forward, err := client.API().MessagesForwardMessages(ctx, opts)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// }
 	}
 
-	link, err := GenerateLink(message)
-	if err != nil {
+	return func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
+		err := callback(ctx, e, update)
+		if err != nil {
+			log.Printf("ERRO: %v", err)
+		}
 		return err
 	}
-
-	keyboard := telegram.NewKeyboard()
-	keyboard.AddRow(
-		telegram.Button.URL("Open", link),
-	)
-
-	text := fmt.Sprintf("<code>%s</code>", link)
-	opts := &telegram.SendOptions{
-		ParseMode:   telegram.HTML,
-		ReplyMarkup: keyboard.Build(),
-		ReplyID:     message.ID,
-	}
-
-	_, err = Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
-	if err != nil {
-		return err
-	}
-
-	buffer := db.GetBuffer(message.SenderID())
-	if buffer != nil {
-		buffer.WriteString(link + "\n")
-	}
-
-	return nil
-}
-
-func HelpHandler(message *telegram.NewMessage) error {
-	text := "Hello, send me any file to get a direct streamble link to that file."
-	_, err := message.Reply(text)
-	return err
 }

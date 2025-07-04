@@ -10,109 +10,101 @@
 
 package bot
 
-import (
-	"fmt"
-	"strings"
-	"time"
-
-	"github.com/amarnathcjd/gogram/telegram"
-	"github.com/legzdev/BaitoMeBot/db"
-)
-
-func OnTxtCommand(message *telegram.NewMessage) error {
-	command := message.GetCommand()
-
-	if strings.HasPrefix(command, "/txtcaptionfull") {
-		return onTxt(message, db.StateTxtCaptionFull)
-	} else if strings.HasPrefix(command, "/txtcaption") {
-		return onTxt(message, db.StateTxtCaption)
-	}
-
-	return onTxt(message, db.StateTxt)
-}
-
-func onTxt(message *telegram.NewMessage, state db.State) error {
-	senderID := message.SenderID()
-
-	buffer := db.GetBuffer(senderID)
-	if buffer == nil {
-		bufferName := NameFromArgs(message.MessageText())
-		bufferName = GetBufferName("", bufferName)
-
-		db.SetBuffer(senderID, bufferName)
-		db.SetState(senderID, state)
-
-		text := "<b>Switched to TXT (buffer) mode.</b>\n"
-		text += fmt.Sprintf("📝 <b>Name:</b> <code>%s</code>\n", bufferName)
-		text += fmt.Sprintf("🔭 <b>Mode:</b> %s", state.String())
-
-		opts := &telegram.SendOptions{
-			ParseMode: telegram.HTML,
-			ReplyID:   message.ID,
-		}
-
-		_, err := Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
-		return err
-	}
-
-	if buffer.Len() == 0 {
-		db.DelBuffer(senderID)
-		db.DelState(senderID)
-
-		text := "<b>Switched to normal mode.</b>\n"
-		text += "Cleaned empty buffer"
-
-		opts := &telegram.SendOptions{
-			ParseMode: telegram.HTML,
-			ReplyID:   message.ID,
-		}
-
-		_, err := Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
-		return err
-	}
-
-	newName := NameFromArgs(message.MessageText())
-	fileName := GetBufferName(buffer.Name, newName)
-
-	opts := &telegram.MediaOptions{
-		FileName: fileName,
-		ReplyID:  message.ID,
-	}
-
-	_, err := Bot.SendMedia(message.Client, message.ChannelID(), buffer.Bytes(), opts)
-	if err != nil {
-		return err
-	}
-
-	db.DelBuffer(senderID)
-	db.DelState(senderID)
-
-	return nil
-}
-
-func NameFromArgs(text string) string {
-	textParts := strings.Split(text, " ")
-	if len(textParts) < 2 {
-		return ""
-	}
-
-	return strings.Join(textParts[1:], " ")
-}
-
-func GetBufferName(currentName string, newName string) string {
-	var name string
-
-	if newName != "" {
-		name = newName
-	} else if currentName != "" {
-		name = currentName
-	} else {
-		name = time.Now().Format(time.DateTime) + ".txt"
-	}
-
-	if !strings.HasSuffix(name, ".txt") {
-		name += ".txt"
-	}
-
-	return name
-}
+//
+// func OnTxtCommand(message *telegram.NewMessage) error {
+// 	command := message.GetCommand()
+//
+// 	if strings.HasPrefix(command, "/txtcaptionfull") {
+// 		return onTxt(message, db.StateTxtCaptionFull)
+// 	} else if strings.HasPrefix(command, "/txtcaption") {
+// 		return onTxt(message, db.StateTxtCaption)
+// 	}
+//
+// 	return onTxt(message, db.StateTxt)
+// }
+//
+// func onTxt(message *telegram.NewMessage, state db.State) error {
+// 	senderID := message.SenderID()
+//
+// 	buffer := db.GetBuffer(senderID)
+// 	if buffer == nil {
+// 		bufferName := NameFromArgs(message.MessageText())
+// 		bufferName = GetBufferName("", bufferName)
+//
+// 		db.SetBuffer(senderID, bufferName)
+// 		db.SetState(senderID, state)
+//
+// 		text := "<b>Switched to TXT (buffer) mode.</b>\n"
+// 		text += fmt.Sprintf("📝 <b>Name:</b> <code>%s</code>\n", bufferName)
+// 		text += fmt.Sprintf("🔭 <b>Mode:</b> %s", state.String())
+//
+// 		opts := &telegram.SendOptions{
+// 			ParseMode: telegram.HTML,
+// 			ReplyID:   message.ID,
+// 		}
+//
+// 		_, err := Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
+// 		return err
+// 	}
+//
+// 	if buffer.Len() == 0 {
+// 		db.DelBuffer(senderID)
+// 		db.DelState(senderID)
+//
+// 		text := "<b>Switched to normal mode.</b>\n"
+// 		text += "Cleaned empty buffer"
+//
+// 		opts := &telegram.SendOptions{
+// 			ParseMode: telegram.HTML,
+// 			ReplyID:   message.ID,
+// 		}
+//
+// 		_, err := Bot.SendMessage(message.Client, message.ChannelID(), text, opts)
+// 		return err
+// 	}
+//
+// 	newName := NameFromArgs(message.MessageText())
+// 	fileName := GetBufferName(buffer.Name, newName)
+//
+// 	opts := &telegram.MediaOptions{
+// 		FileName: fileName,
+// 		ReplyID:  message.ID,
+// 	}
+//
+// 	_, err := Bot.SendMedia(message.Client, message.ChannelID(), buffer.Bytes(), opts)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	db.DelBuffer(senderID)
+// 	db.DelState(senderID)
+//
+// 	return nil
+// }
+//
+// func NameFromArgs(text string) string {
+// 	textParts := strings.Split(text, " ")
+// 	if len(textParts) < 2 {
+// 		return ""
+// 	}
+//
+// 	return strings.Join(textParts[1:], " ")
+// }
+//
+// func GetBufferName(currentName string, newName string) string {
+// 	var name string
+//
+// 	if newName != "" {
+// 		name = newName
+// 	} else if currentName != "" {
+// 		name = currentName
+// 	} else {
+// 		name = time.Now().Format(time.DateTime) + ".txt"
+// 	}
+//
+// 	if !strings.HasSuffix(name, ".txt") {
+// 		name += ".txt"
+// 	}
+//
+// 	return name
+// }

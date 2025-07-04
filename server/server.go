@@ -11,13 +11,14 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/amarnathcjd/gogram/telegram"
+	"github.com/gotd/td/telegram"
 	"github.com/legzdev/BaitoMeBot/bot"
 )
 
@@ -71,10 +72,12 @@ func GetExtraBotTokens() []string {
 }
 
 func (server *Server) Init() error {
+	ctx := context.Background()
+
 	for index, env := range server.extraTokens {
 		envValue := strings.Split(env, "=")[1]
 
-		worker, err := bot.NewWithToken(envValue)
+		worker, err := bot.NewWithToken(ctx, envValue, nil)
 		if err != nil {
 			return err
 		}

@@ -11,9 +11,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 
+	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/tg"
 	"github.com/legzdev/BaitoMeBot/bot"
 	"github.com/legzdev/BaitoMeBot/config"
 	"github.com/legzdev/BaitoMeBot/db"
@@ -21,19 +25,30 @@ import (
 )
 
 func main() {
+	log.Println("Initializing...")
+	ctx := context.Background()
+
 	err := config.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db.Init()
-
-	client, err := bot.New()
+	err = db.Init()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	handler := server.New(client)
+	mainBot, err := bot.New(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = PrefetchTelegramChannel(mainBot.Client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	handler := server.New(mainBot.Client)
 
 	err = handler.Init()
 	if err != nil {
@@ -46,4 +61,42 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func PrefetchTelegramChannel(client *telegram.Client) error {
+	peer, err := db.Peers.GetChannel(config.TelegramChatID)
+	if err != nil && peer != nil {
+		return nil
+	}
+
+	input := &tg.InputChannel{
+		ChannelID: config.TelegramChatID,
+	}
+
+	ctx := context.Background()
+	ids := []tg.InputChannelClass{input}
+
+	chats, err := client.API().ChannelsGetChannels(ctx, ids)
+	if err != nil {
+		return err
+	}
+
+	chatList := chats.GetChats()
+	if len(chatList) == 0 {
+		return errors.New("prefetch: cannot find channel peer")
+	}
+
+	chat := chatList[0]
+
+	channel, ok := (chat).(*tg.Channel)
+	if !ok {
+		return errors.New("prefetch: invalid peer type")
+	}
+
+	peer = &tg.InputPeerChannel{
+		ChannelID:  config.TelegramChatID,
+		AccessHash: channel.AccessHash,
+	}
+
+	return db.Peers.Put(peer)
 }

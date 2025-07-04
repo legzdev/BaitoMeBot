@@ -10,64 +10,57 @@
 
 package bot
 
-import (
-	"slices"
-
-	"github.com/amarnathcjd/gogram/telegram"
-	"github.com/legzdev/BaitoMeBot/config"
-)
-
-type MiddlewareFunc = func(*telegram.NewMessage) error
-
-func AuthMiddleware(callback MiddlewareFunc) MiddlewareFunc {
-	return func(message *telegram.NewMessage) error {
-		var whiteListEnabled bool
-
-		client := message.Client
-		senderID := message.SenderID()
-
-		if config.AllowedUsers != nil {
-			if slices.Contains(config.AllowedUsers, senderID) {
-				return callback(message)
-			}
-			whiteListEnabled = true
-		}
-
-		if config.AuthChannelID != 0 {
-			member, err := client.GetChatMember(config.AuthChannelID, senderID)
-			if err != nil {
-				return err
-			}
-
-			switch member.Status {
-			case telegram.Creator:
-			case telegram.Admin:
-			case telegram.Member:
-				return callback(message)
-			}
-
-			whiteListEnabled = true
-		}
-
-		if whiteListEnabled {
-			text := "You are not allowed to use this bot.\n"
-			text += "However, it's open-source and you can host it yourself."
-
-			sourceButton := telegram.Button.URL(
-				"Source Code", config.SourceURL,
-			)
-
-			keyboard := telegram.NewKeyboard()
-			keyboard.AddRow(sourceButton)
-
-			opts := telegram.SendOptions{
-				ReplyMarkup: keyboard.Build(),
-			}
-
-			_, err := message.Reply(text, opts)
-			return err
-		}
-
-		return callback(message)
-	}
-}
+// type MiddlewareFunc = func(*telegram.NewMessage) error
+//
+// func AuthMiddleware(callback MiddlewareFunc) MiddlewareFunc {
+// 	return func(message *telegram.NewMessage) error {
+// 		var whiteListEnabled bool
+//
+// 		client := message.Client
+// 		senderID := message.SenderID()
+//
+// 		if config.AllowedUsers != nil {
+// 			if slices.Contains(config.AllowedUsers, senderID) {
+// 				return callback(message)
+// 			}
+// 			whiteListEnabled = true
+// 		}
+//
+// 		if config.AuthChannelID != 0 {
+// 			member, err := client.GetChatMember(config.AuthChannelID, senderID)
+// 			if err != nil {
+// 				return err
+// 			}
+//
+// 			switch member.Status {
+// 			case telegram.Creator:
+// 			case telegram.Admin:
+// 			case telegram.Member:
+// 				return callback(message)
+// 			}
+//
+// 			whiteListEnabled = true
+// 		}
+//
+// 		if whiteListEnabled {
+// 			text := "You are not allowed to use this bot.\n"
+// 			text += "However, it's open-source and you can host it yourself."
+//
+// 			sourceButton := telegram.Button.URL(
+// 				"Source Code", config.SourceURL,
+// 			)
+//
+// 			keyboard := telegram.NewKeyboard()
+// 			keyboard.AddRow(sourceButton)
+//
+// 			opts := telegram.SendOptions{
+// 				ReplyMarkup: keyboard.Build(),
+// 			}
+//
+// 			_, err := message.Reply(text, opts)
+// 			return err
+// 		}
+//
+// 		return callback(message)
+// 	}
+// }

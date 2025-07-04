@@ -11,37 +11,50 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 
-	"github.com/amarnathcjd/gogram/telegram"
+	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/tg"
 	"github.com/legzdev/BaitoMeBot/config"
-	"github.com/legzdev/BaitoMeBot/errs"
+	"github.com/legzdev/BaitoMeBot/tgfiles"
 )
 
 type TelegramReader struct {
 	io.ReadSeeker
+	ctx           context.Context
 	client        *telegram.Client
-	media         telegram.MessageMedia
-	location      telegram.InputFileLocation
+	media         any
+	location      tg.InputFileLocationClass
 	dcID          int
 	currentOffset int64
 	maxOffset     int64
 	end           int64
 }
 
-func NewTelegramReader(client *telegram.Client, media telegram.MessageMedia, end int64) (*TelegramReader, error) {
-	location, dcID, _, _, err := telegram.GetFileLocation(media)
+func NewTelegramReader(ctx context.Context, client *telegram.Client, message *tg.Message, end int64) (*TelegramReader, error) {
+	peerID, ok := message.GetFromID()
+	if !ok {
+		return nil, errors.New("reader: mesaage without sender id")
+	}
+
+	senderID, ok := peerID.(*tg.PeerUser)
+	if !ok {
+		return nil, fmt.Errorf("reader: invalid peer id %T", peerID)
+	}
+
+	info, err := tgfiles.GetFileInfo(message, senderID.UserID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &TelegramReader{
+		ctx:       ctx,
 		client:    client,
-		media:     media,
-		location:  location,
-		dcID:      int(dcID),
+		media:     message.Media,
+		location:  info.Location,
 		end:       end,
 		maxOffset: end + 1,
 	}, nil
@@ -78,31 +91,20 @@ func (r *TelegramReader) Read(buffer []byte) (int, error) {
 		limit = paddingPrefix + bufferSize + paddingSuffix
 	}
 
-	sender := r.client.MTProto
-	var err error
-
-	if sender.GetDC() != r.dcID {
-		sender, err = r.client.CreateExportedSender(r.dcID, false)
-		if err != nil {
-			return 0, err
-		}
+	req := &tg.UploadGetFileRequest{
+		Location: r.location,
+		Precise:  true,
+		Offset:   offset,
+		Limit:    limit,
 	}
 
-	params := &telegram.UploadGetFileParams{
-		Location:     r.location,
-		Offset:       offset,
-		Limit:        int32(limit),
-		Precise:      true,
-		CdnSupported: false,
-	}
-
-	part, err := sender.MakeRequest(params)
+	uploadRes, err := r.client.API().UploadGetFile(r.ctx, req)
 	if err != nil {
-		return 0, errs.Wrapf(err, "request error (off=%d lim=%d end=%d)", r.currentOffset, limit, r.end)
+		return 0, err
 	}
 
-	switch res := part.(type) {
-	case *telegram.UploadFileObj:
+	switch res := uploadRes.(type) {
+	case *tg.UploadFile:
 		resSize := bufferSize
 
 		resLen := len(res.Bytes)
@@ -121,9 +123,6 @@ func (r *TelegramReader) Read(buffer []byte) (int, error) {
 		r.currentOffset += int64(written)
 
 		return written, nil
-
-	case *telegram.UploadFileCdnRedirect:
-		return 0, errors.New("cdn redirect not implemented")
 	}
 
 	return 0, errors.New("unexpected result")

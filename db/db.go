@@ -12,7 +12,14 @@ package db
 
 type UserID = int64
 
-func Init() {
+func Init() (err error) {
+	Peers, err = NewPeersDB()
+	if err != nil {
+		return err
+	}
+
 	buffers = make(map[UserID]*UserBuffer)
 	states = make(map[UserID]State)
+
+	return nil
 }

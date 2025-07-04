@@ -18,11 +18,15 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gotd/td/tg"
 	"github.com/legzdev/BaitoMeBot/config"
+	"github.com/legzdev/BaitoMeBot/db"
 	"github.com/legzdev/BaitoMeBot/tgfiles"
 )
 
 func (server *Server) Download(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	client := server.GetWorker()
 	if client == nil {
 		http.Error(w, "server bussy", http.StatusServiceUnavailable)
@@ -37,14 +41,53 @@ func (server *Server) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := client.GetMessageByID(config.TelegramChatID, int32(messageID))
+	peer, err := db.Peers.GetChannel(config.TelegramChatID)
 	if err != nil {
-		log.Println("ERRO: GetMessageByID:", err)
-		http.Error(w, "failed to get the message", http.StatusBadGateway)
+		log.Printf("failed to get channel from peers cache: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	fileInfo := tgfiles.GetFileInfo(message, 0)
+	messagesReq := &tg.ChannelsGetMessagesRequest{
+		Channel: &tg.InputChannel{
+			ChannelID:  peer.ChannelID,
+			AccessHash: peer.AccessHash,
+		},
+		ID: []tg.InputMessageClass{
+			&tg.InputMessageID{ID: messageID},
+		},
+	}
+
+	messagesRes, err := client.API().ChannelsGetMessages(ctx, messagesReq)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadGateway)
+		return
+	}
+
+	messages, ok := messagesRes.(*tg.MessagesChannelMessages)
+	if !ok {
+		log.Println("messages response are not channel messages")
+		return
+	}
+
+	if len(messages.Messages) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	message, ok := messages.Messages[0].(*tg.Message)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	fileInfo, err := tgfiles.GetFileInfo(message, 0)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	fileName := r.PathValue("file_name")
 	if fileName == "" {
@@ -57,7 +100,7 @@ func (server *Server) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	media := message.Media()
+	media := message.Media
 	if media == nil {
 		http.NotFound(w, r)
 		return
@@ -90,7 +133,7 @@ func (server *Server) Download(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusPartialContent)
 	}
 
-	reader, err := NewTelegramReader(client, media, rang.End)
+	reader, err := NewTelegramReader(ctx, client, message, rang.End)
 	if err != nil {
 		return
 	}

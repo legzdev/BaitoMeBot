@@ -11,92 +11,95 @@
 package bot
 
 import (
+	"context"
+	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/amarnathcjd/gogram/telegram"
+	"github.com/gotd/td/tg"
 	"github.com/legzdev/BaitoMeBot/config"
 )
-
-type TGMutex struct {
-	mux   sync.Mutex
-	muxes map[int64]*Mutex
-}
 
 type Mutex struct {
 	sync.Mutex
 	lastUsage time.Time
 }
 
-func NewTGMutex() *TGMutex {
-	mux := &TGMutex{
-		muxes: make(map[int64]*Mutex),
-	}
-
+func (bot *Bot) NewTGMutex() {
 	go func() {
 		for {
-			mux.mux.Lock()
+			bot.mux.Lock()
 
-			for userID, mutex := range mux.muxes {
+			for mutexID, mutex := range bot.muxes {
 				if time.Since(mutex.lastUsage) > config.TimeBetweenChecks {
-					delete(mux.muxes, userID)
+					delete(bot.muxes, mutexID)
 				}
 			}
 
-			mux.mux.Unlock()
+			bot.mux.Unlock()
 			time.Sleep(config.TimeBetweenChecks)
 		}
 	}()
-
-	return mux
 }
 
-func (tgm *TGMutex) GetChatMutex(chatID int64) *Mutex {
-	tgm.mux.Lock()
-	defer tgm.mux.Unlock()
+func (bot *Bot) GetChatMutex(chatID string) *Mutex {
+	bot.mux.Lock()
+	defer bot.mux.Unlock()
 
-	userMutex, ok := tgm.muxes[chatID]
+	userMutex, ok := bot.muxes[chatID]
 	if !ok {
 		userMutex = new(Mutex)
-		tgm.muxes[chatID] = userMutex
+		bot.muxes[chatID] = userMutex
+	} else {
+		elapsed := time.Since(userMutex.lastUsage)
+		if elapsed < config.TimeBetweenMessages {
+			time.Sleep(config.TimeBetweenMessages - elapsed)
+		}
 	}
 
 	return userMutex
 }
 
-func (tgm *TGMutex) SendMessage(c *telegram.Client, chatID int64, text string, opts ...*telegram.SendOptions) (*telegram.NewMessage, error) {
-	mux := tgm.GetChatMutex(chatID)
-	mux.Lock()
-	defer mux.Unlock()
-
-	message, err := c.SendMessage(chatID, text, opts...)
-	time.Sleep(config.TimeBetweenMessages)
-
-	return message, err
+func (bot *Bot) SendMessage(ctx context.Context, req *tg.MessagesSendMessageRequest) (upd tg.UpdatesClass, err error) {
+	bot.do(peerKey(req.Peer), func() {
+		req.RandomID = rand.Int63()
+		upd, err = bot.Client.API().MessagesSendMessage(ctx, req)
+	})
+	return upd, err
 }
 
-func (tgm *TGMutex) SendMedia(c *telegram.Client, chatID int64, media any, opts ...*telegram.MediaOptions) (*telegram.NewMessage, error) {
-	mux := tgm.GetChatMutex(chatID)
-	mux.Lock()
-	defer mux.Unlock()
-
-	message, err := c.SendMedia(chatID, media, opts...)
-	time.Sleep(config.TimeBetweenMessages)
-
-	return message, err
+func (bot *Bot) SendMedia(ctx context.Context, req *tg.MessagesSendMediaRequest) (upd tg.UpdatesClass, err error) {
+	bot.do(peerKey(req.Peer), func() {
+		req.RandomID = rand.Int63()
+		upd, err = bot.Client.API().MessagesSendMedia(ctx, req)
+	})
+	return upd, err
 }
 
-func (tgm *TGMutex) ForwardTo(c *telegram.Client, dstID, srcID int64, msgID int32) (*telegram.NewMessage, error) {
-	mux := tgm.GetChatMutex(dstID)
+func (bot *Bot) ForwardMessage(ctx context.Context, req *tg.MessagesForwardMessagesRequest) (upd tg.UpdatesClass, err error) {
+	bot.do(peerKey(req.ToPeer), func() {
+		req.RandomID = []int64{rand.Int63()}
+		upd, err = bot.Client.API().MessagesForwardMessages(ctx, req)
+	})
+	return upd, err
+}
+
+func (bot *Bot) do(peerKey string, callback func()) {
+	mux := bot.GetChatMutex(peerKey)
 	mux.Lock()
 	defer mux.Unlock()
 
-	messages, err := c.Forward(dstID, srcID, []int32{msgID})
-	time.Sleep(config.TimeBetweenMessages)
+	callback()
+	mux.lastUsage = time.Now()
+}
 
-	if err != nil {
-		return nil, err
+func peerKey(peer tg.InputPeerClass) string {
+	switch v := peer.(type) {
+	case *tg.InputPeerChannel:
+		return fmt.Sprintf("channel(%d)", v.ChannelID)
+	case *tg.InputPeerUser:
+		return fmt.Sprintf("user(%d)", v.UserID)
 	}
-
-	return &messages[0], nil
+	return "unknown(0)"
 }

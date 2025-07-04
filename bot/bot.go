@@ -11,52 +11,80 @@
 package bot
 
 import (
-	"log"
-	"time"
+	"context"
+	"sync"
 
-	"github.com/amarnathcjd/gogram/telegram"
 	"github.com/legzdev/BaitoMeBot/config"
+	"github.com/legzdev/BaitoMeBot/errs"
+
+	"github.com/gotd/td/session"
+	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/telegram/dcs"
+	"github.com/gotd/td/tg"
+	"golang.org/x/net/proxy"
 )
 
-var Bot = NewTGMutex()
-
-func New() (*telegram.Client, error) {
-	return NewWithToken(config.TelegramBotToken)
+type Bot struct {
+	Client *telegram.Client
+	mux    sync.Mutex
+	muxes  map[string]*Mutex
 }
 
-func NewWithToken(token string) (*telegram.Client, error) {
-	clientConfig := telegram.ClientConfig{
-		AppHash:      config.TelegramAppHash,
-		AppID:        config.TelegramAppID,
-		LogLevel:     telegram.LogWarn,
-		FloodHandler: FloodHandler,
+func New(ctx context.Context) (bot *Bot, err error) {
+	bot = &Bot{
+		muxes: map[string]*Mutex{},
 	}
 
-	client, err := telegram.NewClient(clientConfig)
+	bot.NewTGMutex()
+
+	dp := tg.NewUpdateDispatcher()
+	dp.OnNewMessage(bot.MessageHandler())
+
+	bot.Client, err = NewWithToken(ctx, config.TelegramBotToken, dp)
 	if err != nil {
 		return nil, err
 	}
 
-	client.On("message:/start", AuthMiddleware(HelpHandler))
-	client.On("message:/help", AuthMiddleware(HelpHandler))
-	client.On("message:/txt", AuthMiddleware(OnTxtCommand))
-	client.On("message", AuthMiddleware(OnMessage), telegram.FilterMedia)
-
-	err = client.ConnectBot(token)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
+	return bot, nil
 }
 
-// Not sure if this works as expected
-func FloodHandler(err error) bool {
-	floodWait := telegram.GetFloodWait(err)
+func NewWithToken(ctx context.Context, token string, uh telegram.UpdateHandler) (*telegram.Client, error) {
+	opts := telegram.Options{
+		SessionStorage: &session.FileStorage{
+			Path: "bot.session",
+		},
+		UpdateHandler: uh,
+		Resolver: dcs.Plain(dcs.PlainOptions{
+			Dial: proxy.Dial,
+		}),
+	}
 
-	duration := time.Duration(floodWait) * time.Second
-	log.Printf("ratelimit reached (floodwait %v)", duration)
+	client := telegram.NewClient(int(config.TelegramAppID), config.TelegramAppHash, opts)
+	initChan := make(chan bool)
 
-	time.Sleep(duration)
-	return true
+	go client.Run(ctx, func(ctx context.Context) error {
+		initChan <- true
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	})
+
+	<-initChan
+
+	status, err := client.Auth().Status(ctx)
+	if err != nil {
+		return nil, errs.Wrap(err, "auth status")
+	}
+
+	if !status.Authorized {
+		_, err = client.Auth().Bot(ctx, token)
+		if err != nil {
+			return nil, errs.Wrap(err, "auth login")
+		}
+	}
+
+	return client, err
 }
