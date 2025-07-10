@@ -25,8 +25,8 @@ import (
 const (
 	SourceURL = "https://github.com/legzdev/BaitoMeBot"
 
-	ChunkSize = 64 * 1024 // 64 KB
-	AlignSize = 1024      // 1 KB
+	ChunkSize = 1024 * 1024 // 1 MB
+	AlignSize = 4 * 1024    // 4 KB
 )
 
 var (

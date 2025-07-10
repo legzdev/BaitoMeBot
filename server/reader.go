@@ -93,7 +93,6 @@ func (r *TelegramReader) Read(buffer []byte) (int, error) {
 
 	req := &tg.UploadGetFileRequest{
 		Location: r.location,
-		Precise:  true,
 		Offset:   offset,
 		Limit:    limit,
 	}
